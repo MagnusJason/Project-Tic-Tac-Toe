@@ -46,66 +46,137 @@ const Player = (name, marker) => {
     };
 };
 
-// AI Module (IIFE - single instance)
+// AI Module (IIFE - single instance) - Minimax Algorithm
 const AI = (() => {
-    const getBestMove = (board, computerMarker, playerMarker) => {
-        // Strategy: Try to win, then block, then take center, then corners, then edges
-        
-        // 1. Try to win
-        let move = findWinningMove(board, computerMarker);
-        if (move !== null) return move;
-        
-        // 2. Block player from winning
-        move = findWinningMove(board, playerMarker);
-        if (move !== null) return move;
-        
-        // 3. Take center if available
-        if (board[4] === '') return 4;
-        
-        // 4. Take a corner if available
-        const corners = [0, 2, 6, 8];
-        const availableCorners = corners.filter(index => board[index] === '');
-        if (availableCorners.length > 0) {
-            return availableCorners[Math.floor(Math.random() * availableCorners.length)];
-        }
-        
-        // 5. Take any available edge
-        const edges = [1, 3, 5, 7];
-        const availableEdges = edges.filter(index => board[index] === '');
-        if (availableEdges.length > 0) {
-            return availableEdges[Math.floor(Math.random() * availableEdges.length)];
-        }
-        
-        return null;
+    const winConditions = [
+        [0, 1, 2], // top row
+        [3, 4, 5], // middle row
+        [6, 7, 8], // bottom row
+        [0, 3, 6], // left column
+        [1, 4, 7], // middle column
+        [2, 5, 8], // right column
+        [0, 4, 8], // diagonal top-left to bottom-right
+        [2, 4, 6]  // diagonal top-right to bottom-left
+    ];
+
+    // Check if a player has won
+    const checkWinner = (board, marker) => {
+        return winConditions.some(condition => {
+            return condition.every(index => board[index] === marker);
+        });
     };
 
-    const findWinningMove = (board, marker) => {
-        const winConditions = [
-            [0, 1, 2],
-            [3, 4, 5],
-            [6, 7, 8],
-            [0, 3, 6],
-            [1, 4, 7],
-            [2, 5, 8],
-            [0, 4, 8],
-            [2, 4, 6]
-        ];
+    // Check if board is full
+    const isBoardFull = (board) => {
+        return board.every(cell => cell !== '');
+    };
 
-        for (const condition of winConditions) {
-            const [a, b, c] = condition;
-            const values = [board[a], board[b], board[c]];
-            const markerCount = values.filter(v => v === marker).length;
-            const emptyCount = values.filter(v => v === '').length;
+    // Evaluate the board state
+    // Returns: 10 if computer wins, -10 if player wins, 0 for tie
+    const evaluate = (board, computerMarker, playerMarker) => {
+        if (checkWinner(board, computerMarker)) {
+            return 10;
+        } else if (checkWinner(board, playerMarker)) {
+            return -10;
+        } else {
+            return 0;
+        }
+    };
 
-            // If two markers and one empty, return the empty index
-            if (markerCount === 2 && emptyCount === 1) {
-                if (board[a] === '') return a;
-                if (board[b] === '') return b;
-                if (board[c] === '') return c;
-            }
+    // Minimax algorithm
+    const minimax = (board, depth, isMaximizing, computerMarker, playerMarker) => {
+        // Base cases: check if game is over
+        const score = evaluate(board, computerMarker, playerMarker);
+        
+        // If computer wins, return positive score (adjusted by depth for faster wins)
+        if (score === 10) {
+            return score - depth;
+        }
+        
+        // If player wins, return negative score (adjusted by depth for slower losses)
+        if (score === -10) {
+            return score + depth;
+        }
+        
+        // If board is full (tie), return 0
+        if (isBoardFull(board)) {
+            return 0;
         }
 
-        return null;
+        if (isMaximizing) {
+            // Computer's turn - maximize score
+            let bestScore = -Infinity;
+            
+            for (let i = 0; i < 9; i++) {
+                if (board[i] === '') {
+                    // Make move
+                    board[i] = computerMarker;
+                    
+                    // Recursively evaluate this move
+                    const score = minimax(board, depth + 1, false, computerMarker, playerMarker);
+                    
+                    // Undo move
+                    board[i] = '';
+                    
+                    // Update best score
+                    bestScore = Math.max(score, bestScore);
+                }
+            }
+            
+            return bestScore;
+        } else {
+            // Player's turn - minimize score
+            let bestScore = Infinity;
+            
+            for (let i = 0; i < 9; i++) {
+                if (board[i] === '') {
+                    // Make move
+                    board[i] = playerMarker;
+                    
+                    // Recursively evaluate this move
+                    const score = minimax(board, depth + 1, true, computerMarker, playerMarker);
+                    
+                    // Undo move
+                    board[i] = '';
+                    
+                    // Update best score
+                    bestScore = Math.min(score, bestScore);
+                }
+            }
+            
+            return bestScore;
+        }
+    };
+
+    // Get the best move using minimax
+    const getBestMove = (board, computerMarker, playerMarker) => {
+        // Create a copy of the board to avoid modifying the original
+        const boardCopy = [...board];
+        
+        let bestScore = -Infinity;
+        let bestMove = null;
+        
+        // Try all possible moves
+        for (let i = 0; i < 9; i++) {
+            if (boardCopy[i] === '') {
+                // Make move
+                boardCopy[i] = computerMarker;
+                
+                // Evaluate this move
+                const score = minimax(boardCopy, 0, false, computerMarker, playerMarker);
+                
+                // Undo move
+                boardCopy[i] = '';
+                
+                // Update best move if this is better
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = i;
+                }
+            }
+        }
+        
+        return bestMove;
     };
 
     return {
